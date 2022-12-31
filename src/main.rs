@@ -2,41 +2,64 @@ use std::env;
 use std::fs;
 use std::io;
 
-const TAPE_LENGTH: usize = 200000;
+const TAPE_LENGTH: usize = 30000;
 fn main() {
     let args: Vec<String> = env::args().collect();
     let file_path = &args[1];
-    let mut code = fs::read_to_string(file_path).expect("Should have been able to read the file");
+    let mut code_string = fs::read_to_string(file_path).unwrap();
     let mut tape: [u8; TAPE_LENGTH] = [0; TAPE_LENGTH];
-    code.retain(|c| r#"><+-.,[]"#.contains(c));
+    code_string.retain(|c| r#"><+-.,[]"#.contains(c));
+    let code: Vec<char> = code_string.chars().collect();
     let mut pointer: usize = 0;
-    let code_length = code.chars().count();
+    let code_length = code.len();
     let mut data_pointer: usize = 0;
+    let mut brackets: Vec<usize> = Vec::new();
     while data_pointer < code_length {
-        match code.chars().nth(data_pointer).unwrap() {
-            '>' => pointer += 1,                        // increment pointer
-            '<' => pointer -= 1,                        // decrement pointer
-            '+' => tape[pointer] += 1,                  // increment the byte
-            '-' => tape[pointer] -= 1,                  // decrement the byte
-            '.' => print!("{}", tape[pointer] as char), // print the crrent byte
+        match code[data_pointer] {
+            '>' => {
+                if pointer == TAPE_LENGTH - 1 {
+                    pointer = 0;
+                } else {
+                    pointer += 1
+                }
+            } // increment pointer
+            '<' => {
+                if pointer == 0 {
+                    pointer = TAPE_LENGTH - 1;
+                } else {
+                    pointer -= 1
+                }
+            } // decrement pointer
+            '+' => {
+                if tape[pointer] == 255 {
+                    tape[pointer] = 0;
+                } else {
+                    tape[pointer] += 1;
+                }
+            } // increment the byte
+            '-' => {
+                if tape[pointer] == 0 {
+                    tape[pointer] = 255;
+                } else {
+                    tape[pointer] -= 1;
+                }
+            } // decrement the byte
+            '.' => {
+                print!("{}", tape[pointer] as char);
+            } // print the crrent byte
             ',' => {
                 // set current byte to terminal input
                 let mut input = String::new();
-                io::stdin()
-                    .read_line(&mut input)
-                    .expect("Failed to read line");
-                tape[pointer] = input
-                    .trim()
-                    .chars()
-                    .next()
-                    .expect("Input must not be empty") as u8;
+                io::stdin().read_line(&mut input).unwrap();
+                tape[pointer] = input.trim().chars().next().unwrap() as u8;
             }
             '[' => {
-                let mut counter: i16 = 0;
+                let mut counter: u8 = 0;
                 data_pointer += 1;
-                if tape[pointer] as u16 == 0 {
+                brackets.push(data_pointer);
+                if tape[pointer] == 0 {
                     loop {
-                        let c = code.chars().nth(data_pointer).unwrap();
+                        let c = code[data_pointer];
                         if c == ']' && counter == 0 {
                             break;
                         } else if c == '[' {
@@ -45,29 +68,25 @@ fn main() {
                             counter -= 1;
                         }
                         data_pointer += 1;
+                        if data_pointer == TAPE_LENGTH {
+                            panic!("Unbalanced brackets");
+                        }
                     }
                 }
+
                 continue;
             }
             ']' => {
-                let mut counter: i16 = 0;
-                if tape[pointer] as u16 != 0 {
-                    data_pointer -= 1;
-                    loop {
-                        let c = code.chars().nth(data_pointer).unwrap();
-                        if c == '[' && counter == 0 {
-                            break;
-                        } else if c == ']' {
-                            counter += 1;
-                        } else if c == '[' {
-                            counter -= 1;
-                        }
-                        data_pointer -= 1;
-                    }
+                let left_bracket: usize = brackets[brackets.len() - 1];
+                if tape[pointer] != 0 {
+                    data_pointer = left_bracket;
                     continue;
+                } else {
+                    brackets.pop();
                 }
             }
-            _ => continue, // ignore other characters
+            _ => (), // ignore other characters
         }
+        data_pointer += 1;
     }
 }
